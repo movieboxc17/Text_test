@@ -57,12 +57,13 @@
 <body>
 
 <h1>Text Extractor from Images</h1>
-<p>Select an image file to extract text from it. Supported languages are English and Spanish.</p>
+<p>Select an image file to extract text from it. Supported languages are English, Spanish, and Swedish.</p>
 <div id="input-area">
     <input type="file" id="file-input" accept="image/*">
     <select id="language-select">
         <option value="eng">English</option>
         <option value="spa">Spanish</option>
+        <option value="swe">Swedish</option> <!-- Added Swedish Language Option -->
     </select>
     <button id="extract-btn">Extract Text</button>
 </div>
@@ -94,7 +95,7 @@
             const img = new Image();
             img.src = imageData;
             img.onload = function() {
-                // Resize the image
+                // Resize the image while maintaining aspect ratio
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 const maxWidth = 800; // Set a max width
@@ -107,6 +108,7 @@
 
                 loaderDiv.style.display = 'block'; 
                 progressDiv.style.display = 'block'; 
+                progressValue.textContent = '0'; // Reset progress
 
                 // Use Tesseract.js to recognize text
                 Tesseract.recognize(
