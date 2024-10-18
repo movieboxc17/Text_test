@@ -52,6 +52,25 @@
         #language-select {
             margin-top: 20px;
         }
+        #loading-container {
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .spinner {
+            border: 8px solid rgba(255, 255, 255, 0.3);
+            border-top: 8px solid #FFD700;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -59,16 +78,19 @@
 <h1>Text Extractor from Images</h1>
 <p>Select an image file to extract text from it. Supported languages are English, Spanish, and Swedish.</p>
 <div id="input-area">
-    <input type="file" id="file-input" accept="image/*">
+    <input type="file" id="file-input" accept="image/jpeg, image/png">
     <select id="language-select">
         <option value="eng">English</option>
         <option value="spa">Spanish</option>
         <option value="swe">Swedish</option> <!-- Added Swedish Language Option -->
     </select>
     <button id="extract-btn">Extract Text</button>
+    <button id="clear-btn">Clear</button>
 </div>
-<div id="loader">Extracting text, please wait...</div>
-<div id="progress">Progress: <span id="progress-value">0</span>%</div>
+<div id="loading-container">
+    <div class="spinner" id="loader"></div>
+    <div id="progress">Progress: <span id="progress-value">0</span>%</div>
+</div>
 <div id="result"></div>
 
 <script>
@@ -86,8 +108,13 @@
         }
 
         const file = fileInput.files[0];
-        const reader = new FileReader();
+        const validTypes = ['image/jpeg', 'image/png'];
+        if (!validTypes.includes(file.type)) {
+            resultDiv.innerHTML = 'Unsupported file type. Please select a JPEG or PNG image.';
+            return;
+        }
 
+        const reader = new FileReader();
         reader.onload = function(event) {
             const imageData = event.target.result;
 
@@ -140,6 +167,15 @@
         };
 
         reader.readAsDataURL(file);
+    });
+
+    // Clear Button Functionality
+    document.getElementById('clear-btn').addEventListener('click', function() {
+        document.getElementById('file-input').value = '';
+        document.getElementById('result').innerHTML = '';
+        document.getElementById('loader').style.display = 'none';
+        document.getElementById('progress').style.display = 'none';
+        document.getElementById('progress-value').textContent = '0';
     });
 </script>
 
