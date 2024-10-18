@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OCR Tool</title>
-    <script src="https://cdn.rawgit.com/naptha/tesseract.js/2.0.0/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -21,6 +21,27 @@
             background-color: #444;
             padding: 20px;
             border-radius: 10px;
+            max-width: 600px;
+            margin: 20px auto;
+            word-wrap: break-word;
+        }
+        pre {
+            white-space: pre-wrap; /* Ensures text wraps */
+            word-wrap: break-word; /* Break long words */
+        }
+        button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007BFF;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
         }
     </style>
 </head>
@@ -60,6 +81,7 @@
                 resultDiv.innerHTML = '<h2>Extracted Text:</h2><pre>' + text + '</pre>';
             }).catch(err => {
                 resultDiv.innerHTML = 'Error: ' + err.message;
+                console.error(err);
             });
         };
 
