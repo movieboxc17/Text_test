@@ -26,8 +26,8 @@
             word-wrap: break-word;
         }
         pre {
-            white-space: pre-wrap; /* Ensures text wraps */
-            word-wrap: break-word; /* Break long words */
+            white-space: pre-wrap;
+            word-wrap: break-word;
         }
         button {
             margin-top: 10px;
@@ -43,10 +43,13 @@
         button:hover {
             background-color: #0056b3;
         }
-        #loader {
+        #loader, #progress {
             display: none;
-            color: #FFD700; /* Gold color */
+            color: #FFD700; 
             font-size: 1.5em;
+            margin-top: 20px;
+        }
+        #language-select {
             margin-top: 20px;
         }
     </style>
@@ -54,11 +57,17 @@
 <body>
 
 <h1>Text Extractor from Images</h1>
+<p>Select an image file to extract text from it. Supported languages are English and Spanish.</p>
 <div id="input-area">
     <input type="file" id="file-input" accept="image/*">
+    <select id="language-select">
+        <option value="eng">English</option>
+        <option value="spa">Spanish</option>
+    </select>
     <button id="extract-btn">Extract Text</button>
 </div>
 <div id="loader">Extracting text, please wait...</div>
+<div id="progress">Progress: <span id="progress-value">0</span>%</div>
 <div id="result"></div>
 
 <script>
@@ -66,6 +75,9 @@
         const fileInput = document.getElementById('file-input');
         const resultDiv = document.getElementById('result');
         const loaderDiv = document.getElementById('loader');
+        const progressDiv = document.getElementById('progress');
+        const progressValue = document.getElementById('progress-value');
+        const language = document.getElementById('language-select').value;
 
         if (fileInput.files.length === 0) {
             resultDiv.innerHTML = 'Please select an image file.';
@@ -77,24 +89,52 @@
 
         reader.onload = function(event) {
             const imageData = event.target.result;
-            loaderDiv.style.display = 'block'; // Show loading message
 
-            // Use Tesseract.js to recognize text
-            Tesseract.recognize(
-                imageData,
-                'eng',
-                {
-                    logger: info => console.log(info), // Optional logging
-                    workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/worker.min.js' // Specify worker path
-                }
-            ).then(({ data: { text } }) => {
-                loaderDiv.style.display = 'none'; // Hide loading message
-                resultDiv.innerHTML = '<h2>Extracted Text:</h2><pre>' + text + '</pre>';
-            }).catch(err => {
-                loaderDiv.style.display = 'none'; // Hide loading message
-                resultDiv.innerHTML = 'Error: ' + err.message;
-                console.error(err);
-            });
+            // Create an Image object to load the uploaded file
+            const img = new Image();
+            img.src = imageData;
+            img.onload = function() {
+                // Resize the image
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const maxWidth = 800; // Set a max width
+                const scale = maxWidth / img.width;
+
+                canvas.width = maxWidth;
+                canvas.height = img.height * scale;
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const resizedImageData = canvas.toDataURL();
+
+                loaderDiv.style.display = 'block'; 
+                progressDiv.style.display = 'block'; 
+
+                // Use Tesseract.js to recognize text
+                Tesseract.recognize(
+                    resizedImageData,
+                    language,
+                    {
+                        logger: info => {
+                            console.log(info);
+                            if (info.status === 'recognizing text') {
+                                progressValue.textContent = Math.round(info.progress * 100);
+                            }
+                        },
+                        workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/worker.min.js'
+                    }
+                ).then(({ data: { text } }) => {
+                    loaderDiv.style.display = 'none'; 
+                    progressDiv.style.display = 'none'; 
+                    resultDiv.innerHTML = '<h2>Extracted Text:</h2><pre>' + text + '</pre>';
+                }).catch(err => {
+                    loaderDiv.style.display = 'none'; 
+                    progressDiv.style.display = 'none'; 
+                    resultDiv.innerHTML = 'Error: ' + (err.message || 'An unknown error occurred.');
+                    console.error(err);
+                });
+            };
+            img.onerror = function() {
+                resultDiv.innerHTML = 'Error loading image. Please try a different file.';
+            };
         };
 
         reader.readAsDataURL(file);
