@@ -15,6 +15,19 @@
         }
         #input-area {
             margin: 20px auto;
+            max-width: 600px;
+            padding: 20px;
+            border: 2px dashed #007BFF;
+            border-radius: 10px;
+            background-color: #333;
+            cursor: pointer;
+        }
+        #input-area.dragover {
+            border-color: #FFD700;
+            background-color: #444;
+        }
+        #file-input {
+            display: none;
         }
         #result {
             margin-top: 20px;
@@ -38,10 +51,15 @@
             background-color: #007BFF;
             color: white;
             cursor: pointer;
-            transition: background-color 0.3s;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        button:disabled {
+            background-color: #666;
+            cursor: not-allowed;
         }
         button:hover {
             background-color: #0056b3;
+            transform: scale(1.05);
         }
         #loader, #progress {
             display: none;
@@ -71,22 +89,29 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        @media (max-width: 768px) {
+            #input-area, #result {
+                width: 90%;
+            }
+        }
     </style>
 </head>
 <body>
 
 <h1>Text Extractor from Images</h1>
-<p>Select an image file to extract text from it. Supported languages are English, Spanish, and Swedish.</p>
+<p>Select or drag-and-drop an image to extract text. Supported languages: English, Spanish, Swedish.</p>
 <div id="input-area">
     <input type="file" id="file-input" accept="image/jpeg, image/png">
+    <p>Drag and drop an image here or click to select</p>
     <select id="language-select">
         <option value="eng">English</option>
         <option value="spa">Spanish</option>
-        <option value="swe">Swedish</option> <!-- Added Swedish Language Option -->
+        <option value="swe">Swedish</option>
     </select>
-    <button id="extract-btn">Extract Text</button>
-    <button id="clear-btn">Clear</button>
 </div>
+<button id="extract-btn">Extract Text</button>
+<button id="clear-btn">Clear</button>
+
 <div id="loading-container">
     <div class="spinner" id="loader"></div>
     <div id="progress">Progress: <span id="progress-value">0</span>%</div>
@@ -94,88 +119,99 @@
 <div id="result"></div>
 
 <script>
-    document.getElementById('extract-btn').addEventListener('click', function() {
-        const fileInput = document.getElementById('file-input');
-        const resultDiv = document.getElementById('result');
-        const loaderDiv = document.getElementById('loader');
-        const progressDiv = document.getElementById('progress');
-        const progressValue = document.getElementById('progress-value');
-        const language = document.getElementById('language-select').value;
+    const inputArea = document.getElementById('input-area');
+    const fileInput = document.getElementById('file-input');
+    const resultDiv = document.getElementById('result');
+    const loaderDiv = document.getElementById('loader');
+    const progressDiv = document.getElementById('progress');
+    const progressValue = document.getElementById('progress-value');
+    const languageSelect = document.getElementById('language-select');
+    const extractBtn = document.getElementById('extract-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    let selectedFile = null;
 
-        if (fileInput.files.length === 0) {
-            resultDiv.innerHTML = 'Please select an image file.';
-            return;
-        }
+    inputArea.addEventListener('click', () => fileInput.click());
 
-        const file = fileInput.files[0];
+    inputArea.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        inputArea.classList.add('dragover');
+    });
+
+    inputArea.addEventListener('dragleave', () => inputArea.classList.remove('dragover'));
+
+    inputArea.addEventListener('drop', (event) => {
+        event.preventDefault();
+        inputArea.classList.remove('dragover');
+        selectedFile = event.dataTransfer.files[0];
+        handleFile(selectedFile);
+    });
+
+    fileInput.addEventListener('change', () => {
+        selectedFile = fileInput.files[0];
+        handleFile(selectedFile);
+    });
+
+    function handleFile(file) {
         const validTypes = ['image/jpeg', 'image/png'];
         if (!validTypes.includes(file.type)) {
             resultDiv.innerHTML = 'Unsupported file type. Please select a JPEG or PNG image.';
             return;
         }
+    }
+
+    extractBtn.addEventListener('click', () => {
+        if (!selectedFile) {
+            resultDiv.innerHTML = 'Please select or drop an image file.';
+            return;
+        }
 
         const reader = new FileReader();
-        reader.onload = function(event) {
+        reader.onload = (event) => {
             const imageData = event.target.result;
 
-            // Create an Image object to load the uploaded file
+            // Create an Image object to load the file
             const img = new Image();
             img.src = imageData;
-            img.onload = function() {
-                // Resize the image while maintaining aspect ratio
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                const maxWidth = 800; // Set a max width
-                const scale = maxWidth / img.width;
+            img.onload = () => {
+                loaderDiv.style.display = 'block';
+                progressDiv.style.display = 'block';
+                extractBtn.disabled = true;
+                progressValue.textContent = '0';
 
-                canvas.width = maxWidth;
-                canvas.height = img.height * scale;
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                const resizedImageData = canvas.toDataURL();
-
-                loaderDiv.style.display = 'block'; 
-                progressDiv.style.display = 'block'; 
-                progressValue.textContent = '0'; // Reset progress
-
-                // Use Tesseract.js to recognize text
                 Tesseract.recognize(
-                    resizedImageData,
-                    language,
+                    imageData,
+                    languageSelect.value,
                     {
-                        logger: info => {
-                            console.log(info);
+                        logger: (info) => {
                             if (info.status === 'recognizing text') {
                                 progressValue.textContent = Math.round(info.progress * 100);
                             }
-                        },
-                        workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/worker.min.js'
+                        }
                     }
                 ).then(({ data: { text } }) => {
-                    loaderDiv.style.display = 'none'; 
-                    progressDiv.style.display = 'none'; 
+                    loaderDiv.style.display = 'none';
+                    progressDiv.style.display = 'none';
+                    extractBtn.disabled = false;
                     resultDiv.innerHTML = '<h2>Extracted Text:</h2><pre>' + text + '</pre>';
-                }).catch(err => {
-                    loaderDiv.style.display = 'none'; 
-                    progressDiv.style.display = 'none'; 
-                    resultDiv.innerHTML = 'Error: ' + (err.message || 'An unknown error occurred.');
-                    console.error(err);
+                }).catch((err) => {
+                    loaderDiv.style.display = 'none';
+                    progressDiv.style.display = 'none';
+                    extractBtn.disabled = false;
+                    resultDiv.innerHTML = 'Error: ' + err.message;
                 });
             };
-            img.onerror = function() {
-                resultDiv.innerHTML = 'Error loading image. Please try a different file.';
-            };
         };
-
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(selectedFile);
     });
 
-    // Clear Button Functionality
-    document.getElementById('clear-btn').addEventListener('click', function() {
-        document.getElementById('file-input').value = '';
-        document.getElementById('result').innerHTML = '';
-        document.getElementById('loader').style.display = 'none';
-        document.getElementById('progress').style.display = 'none';
-        document.getElementById('progress-value').textContent = '0';
+    clearBtn.addEventListener('click', () => {
+        fileInput.value = '';
+        selectedFile = null;
+        resultDiv.innerHTML = '';
+        loaderDiv.style.display = 'none';
+        progressDiv.style.display = 'none';
+        progressValue.textContent = '0';
+        extractBtn.disabled = false;
     });
 </script>
 
