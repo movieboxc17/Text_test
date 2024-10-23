@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCR Tool</title>
+    <title>OCR Tool with Loading Bar</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
     <style>
         body {
@@ -15,19 +15,6 @@
         }
         #input-area {
             margin: 20px auto;
-            max-width: 600px;
-            padding: 20px;
-            border: 2px dashed #007BFF;
-            border-radius: 10px;
-            background-color: #333;
-            cursor: pointer;
-        }
-        #input-area.dragover {
-            border-color: #FFD700;
-            background-color: #444;
-        }
-        #file-input {
-            display: none;
         }
         #result {
             margin-top: 20px;
@@ -51,21 +38,31 @@
             background-color: #007BFF;
             color: white;
             cursor: pointer;
-            transition: background-color 0.3s, transform 0.2s;
-        }
-        button:disabled {
-            background-color: #666;
-            cursor: not-allowed;
+            transition: background-color 0.3s;
         }
         button:hover {
             background-color: #0056b3;
-            transform: scale(1.05);
         }
-        #loader, #progress {
+        #loader, #progress-bar-container {
             display: none;
             color: #FFD700; 
             font-size: 1.5em;
             margin-top: 20px;
+        }
+        #progress-bar-container {
+            width: 100%;
+            background-color: #444;
+            border-radius: 5px;
+            margin-top: 20px;
+            height: 20px;
+            max-width: 600px;
+            margin: 20px auto;
+        }
+        #progress-bar {
+            height: 100%;
+            width: 0%;
+            background-color: #FFD700;
+            border-radius: 5px;
         }
         #language-select {
             margin-top: 20px;
@@ -89,129 +86,126 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        @media (max-width: 768px) {
-            #input-area, #result {
-                width: 90%;
-            }
-        }
     </style>
 </head>
 <body>
 
-<h1>Text Extractor from Images</h1>
-<p>Select or drag-and-drop an image to extract text. Supported languages: English, Spanish, Swedish.</p>
+<h1>Advanced OCR Tool</h1>
+<p>Select an image or PDF file to extract text. Supported languages are English, Spanish, and Swedish.</p>
 <div id="input-area">
-    <input type="file" id="file-input" accept="image/jpeg, image/png">
-    <p>Drag and drop an image here or click to select</p>
+    <input type="file" id="file-input" accept="image/jpeg, image/png, application/pdf">
     <select id="language-select">
         <option value="eng">English</option>
         <option value="spa">Spanish</option>
         <option value="swe">Swedish</option>
     </select>
+    <button id="extract-btn">Extract Text</button>
+    <button id="clear-btn">Clear</button>
 </div>
-<button id="extract-btn">Extract Text</button>
-<button id="clear-btn">Clear</button>
-
 <div id="loading-container">
     <div class="spinner" id="loader"></div>
-    <div id="progress">Progress: <span id="progress-value">0</span>%</div>
+    <div id="progress-bar-container">
+        <div id="progress-bar"></div>
+    </div>
 </div>
 <div id="result"></div>
 
 <script>
-    const inputArea = document.getElementById('input-area');
-    const fileInput = document.getElementById('file-input');
-    const resultDiv = document.getElementById('result');
-    const loaderDiv = document.getElementById('loader');
-    const progressDiv = document.getElementById('progress');
-    const progressValue = document.getElementById('progress-value');
-    const languageSelect = document.getElementById('language-select');
-    const extractBtn = document.getElementById('extract-btn');
-    const clearBtn = document.getElementById('clear-btn');
-    let selectedFile = null;
+    // Helper function to convert PDF to Image (only works with modern browsers)
+    function pdfToImage(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const pdfData = event.target.result;
 
-    inputArea.addEventListener('click', () => fileInput.click());
-
-    inputArea.addEventListener('dragover', (event) => {
-        event.preventDefault();
-        inputArea.classList.add('dragover');
-    });
-
-    inputArea.addEventListener('dragleave', () => inputArea.classList.remove('dragover'));
-
-    inputArea.addEventListener('drop', (event) => {
-        event.preventDefault();
-        inputArea.classList.remove('dragover');
-        selectedFile = event.dataTransfer.files[0];
-        handleFile(selectedFile);
-    });
-
-    fileInput.addEventListener('change', () => {
-        selectedFile = fileInput.files[0];
-        handleFile(selectedFile);
-    });
-
-    function handleFile(file) {
-        const validTypes = ['image/jpeg', 'image/png'];
-        if (!validTypes.includes(file.type)) {
-            resultDiv.innerHTML = 'Unsupported file type. Please select a JPEG or PNG image.';
-            return;
-        }
+                // Use PDF.js to render the PDF (PDF.js integration is required for full support)
+                // Assuming pdf.js is loaded and initialized.
+                pdfjsLib.getDocument({ data: pdfData }).promise.then(pdf => {
+                    pdf.getPage(1).then(page => {
+                        const viewport = page.getViewport({ scale: 1.5 });
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+                        page.render({ canvasContext: context, viewport: viewport }).promise.then(() => {
+                            resolve(canvas.toDataURL('image/png'));
+                        });
+                    });
+                }).catch(reject);
+            };
+            reader.readAsArrayBuffer(file);
+        });
     }
 
-    extractBtn.addEventListener('click', () => {
-        if (!selectedFile) {
-            resultDiv.innerHTML = 'Please select or drop an image file.';
+    document.getElementById('extract-btn').addEventListener('click', function() {
+        const fileInput = document.getElementById('file-input');
+        const resultDiv = document.getElementById('result');
+        const loaderDiv = document.getElementById('loader');
+        const progressBar = document.getElementById('progress-bar');
+        const language = document.getElementById('language-select').value;
+
+        if (fileInput.files.length === 0) {
+            resultDiv.innerHTML = 'Please select a file.';
+            return;
+        }
+
+        const file = fileInput.files[0];
+        const validTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+        if (!validTypes.includes(file.type)) {
+            resultDiv.innerHTML = 'Unsupported file type. Please select a JPEG, PNG, or PDF file.';
             return;
         }
 
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = function(event) {
             const imageData = event.target.result;
 
-            // Create an Image object to load the file
-            const img = new Image();
-            img.src = imageData;
-            img.onload = () => {
-                loaderDiv.style.display = 'block';
-                progressDiv.style.display = 'block';
-                extractBtn.disabled = true;
-                progressValue.textContent = '0';
+            const processImage = (imageData) => {
+                loaderDiv.style.display = 'block'; 
+                progressBar.style.width = '0%'; 
+                document.getElementById('progress-bar-container').style.display = 'block';
 
                 Tesseract.recognize(
                     imageData,
-                    languageSelect.value,
+                    language,
                     {
-                        logger: (info) => {
+                        logger: info => {
                             if (info.status === 'recognizing text') {
-                                progressValue.textContent = Math.round(info.progress * 100);
+                                progressBar.style.width = Math.round(info.progress * 100) + '%';
                             }
-                        }
+                        },
+                        workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/worker.min.js'
                     }
                 ).then(({ data: { text } }) => {
-                    loaderDiv.style.display = 'none';
-                    progressDiv.style.display = 'none';
-                    extractBtn.disabled = false;
+                    loaderDiv.style.display = 'none'; 
+                    document.getElementById('progress-bar-container').style.display = 'none';
                     resultDiv.innerHTML = '<h2>Extracted Text:</h2><pre>' + text + '</pre>';
-                }).catch((err) => {
-                    loaderDiv.style.display = 'none';
-                    progressDiv.style.display = 'none';
-                    extractBtn.disabled = false;
-                    resultDiv.innerHTML = 'Error: ' + err.message;
+                }).catch(err => {
+                    loaderDiv.style.display = 'none'; 
+                    document.getElementById('progress-bar-container').style.display = 'none';
+                    resultDiv.innerHTML = 'Error: ' + (err.message || 'An unknown error occurred.');
                 });
             };
+
+            if (file.type === 'application/pdf') {
+                pdfToImage(file).then(processImage).catch(err => {
+                    resultDiv.innerHTML = 'Error processing PDF: ' + (err.message || 'An unknown error occurred.');
+                });
+            } else {
+                processImage(imageData);
+            }
         };
-        reader.readAsDataURL(selectedFile);
+
+        reader.readAsDataURL(file);
     });
 
-    clearBtn.addEventListener('click', () => {
-        fileInput.value = '';
-        selectedFile = null;
-        resultDiv.innerHTML = '';
-        loaderDiv.style.display = 'none';
-        progressDiv.style.display = 'none';
-        progressValue.textContent = '0';
-        extractBtn.disabled = false;
+    // Clear Button Functionality
+    document.getElementById('clear-btn').addEventListener('click', function() {
+        document.getElementById('file-input').value = '';
+        document.getElementById('result').innerHTML = '';
+        document.getElementById('loader').style.display = 'none';
+        document.getElementById('progress-bar-container').style.display = 'none';
+        document.getElementById('progress-bar').style.width = '0%';
     });
 </script>
 
